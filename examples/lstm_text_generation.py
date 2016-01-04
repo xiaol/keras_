@@ -1,3 +1,4 @@
+#coding=utf-8
 '''Example script to generate text from Nietzsche's writings.
 
 At least 20 epochs are required before the generated text
@@ -18,18 +19,27 @@ from keras.datasets.data_utils import get_file
 import numpy as np
 import random
 import sys
+import os.path
 
 import pymongo
 from pymongo.read_preferences import ReadPreference
+from keras.models import model_from_json
 # import redis
 # r = redis.Redis('121.40.34.56','6379',db=1)
 
 
 conn = pymongo.MongoReplicaSetClient("h44:27017, h213:27017, h241:27017", replicaSet="myset",
                                      read_preference=ReadPreference.SECONDARY)
+model_fname = '2lstm512.json'
+model_weight_fname = '2lstm512_weights.h5'
+input_data = 'data.txt'
 
 
 def prepare_data():
+    isExist = os.path.isfile(input_data)
+    if isExist:
+        return unicode(open(input_data).read()).lower()  #to unicode with chinese character
+    print('Fetching data...')
     result_list = conn['news_ver2']['googleNewsItem'].find({"isOnline": 1}).\
         sort([("createTime", pymongo.DESCENDING)]).limit(2).batch_size(1000)
     text = ''
@@ -37,16 +47,17 @@ def prepare_data():
         text += result['title']
         text += '\n'
         text += result['text']
-    return text
+    open(input_data, 'w').write(text)
+    return text.lower()
 
 
 def old_one():
     path = get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt")
     text = open(path).read().lower()
+    return text
 
 text = prepare_data()
 print('corpus length:', len(text))
-
 chars = set(text)
 print('total chars:', len(chars))
 char_indices = dict((c, i) for i, c in enumerate(chars))
@@ -71,17 +82,33 @@ for i, sentence in enumerate(sentences):
     y[i, char_indices[next_chars[i]]] = 1
 
 
-# build the model: 2 stacked LSTM
-print('Build model...')
-model = Sequential()
-model.add(LSTM(512, return_sequences=True, input_shape=(maxlen, len(chars))))
-model.add(Dropout(0.2))
-model.add(LSTM(512, return_sequences=False))
-model.add(Dropout(0.2))
-model.add(Dense(len(chars)))
-model.add(Activation('softmax'))
+def prepare_model():
+    isExist = os.path.isfile(model_fname)
+    if not isExist:
+        # build the model: 2 stacked LSTM
+        print('Build model...')
+        model = Sequential()
+        model.add(LSTM(512, return_sequences=True, input_shape=(maxlen, len(chars))))
+        model.add(Dropout(0.2))
+        model.add(LSTM(512, return_sequences=False))
+        model.add(Dropout(0.2))
+        model.add(Dense(len(chars)))
+        model.add(Activation('softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+    else:
+        model = model_from_json(open(model_fname).read())
+        if os.path.isfile(model_weight_fname):
+            model.load_weights(model_weight_fname)
+    return model
 
-model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+
+def save_model(model):
+    print('Saving...')
+    json_string = model.to_json()
+    open(model_fname, 'w').write(json_string)
+    model.save_weights(model_weight_fname)
+
+g_model = prepare_model()
 
 
 def sample(a, temperature=1.0):
@@ -95,7 +122,7 @@ for iteration in range(1, 60):
     print()
     print('-' * 50)
     print('Iteration', iteration)
-    model.fit(X, y, batch_size=128, nb_epoch=1)
+    g_model.fit(X, y, batch_size=128, nb_epoch=1)
 
     start_index = random.randint(0, len(text) - maxlen - 1)
 
@@ -114,7 +141,7 @@ for iteration in range(1, 60):
             for t, char in enumerate(sentence):
                 x[0, t, char_indices[char]] = 1.
 
-            preds = model.predict(x, verbose=0)[0]
+            preds = g_model.predict(x, verbose=0)[0]
             next_index = sample(preds, diversity)
             next_char = indices_char[next_index]
 
@@ -124,3 +151,5 @@ for iteration in range(1, 60):
             sys.stdout.write(next_char)
             sys.stdout.flush()
         print()
+
+    save_model(g_model)
