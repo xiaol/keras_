@@ -19,8 +19,32 @@ import numpy as np
 import random
 import sys
 
-path = get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt")
-text = open(path).read().lower()
+import pymongo
+from pymongo.read_preferences import ReadPreference
+# import redis
+# r = redis.Redis('121.40.34.56','6379',db=1)
+
+
+conn = pymongo.MongoReplicaSetClient("h44:27017, h213:27017, h241:27017", replicaSet="myset",
+                                     read_preference=ReadPreference.SECONDARY)
+
+
+def prepare_data():
+    result_list = conn['news_ver2']['googleNewsItem'].find({"isOnline": 1}).\
+        sort([("createTime", pymongo.DESCENDING)]).limit(2).batch_size(1000)
+    text = ''
+    for result in result_list:
+        text += result['title']
+        text += '\n'
+        text += result['text']
+    return text
+
+
+def old_one():
+    path = get_file('nietzsche.txt', origin="https://s3.amazonaws.com/text-datasets/nietzsche.txt")
+    text = open(path).read().lower()
+
+text = prepare_data()
 print('corpus length:', len(text))
 
 chars = set(text)
