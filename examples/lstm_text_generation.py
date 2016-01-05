@@ -33,7 +33,8 @@ conn = pymongo.MongoReplicaSetClient("h44:27017, h213:27017, h241:27017", replic
 model_fname = '2lstm512.json'
 model_weight_fname = '2lstm512_weights.h5'
 input_data = 'data.txt'
-
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 def prepare_data():
     isExist = os.path.isfile(input_data)
@@ -47,7 +48,7 @@ def prepare_data():
         text += result['title']
         text += '\n'
         text += result['text']
-    open(input_data, 'w').write(text)
+    open(input_data, 'w').write(text.encode('utf-8'))
     return text.lower()
 
 
@@ -118,7 +119,7 @@ def sample(a, temperature=1.0):
     return np.argmax(np.random.multinomial(1, a, 1))
 
 # train the model, output generated text after each iteration
-for iteration in range(1, 60):
+for iteration in range(1, 2000):
     print()
     print('-' * 50)
     print('Iteration', iteration)
@@ -152,4 +153,4 @@ for iteration in range(1, 60):
             sys.stdout.flush()
         print()
 
-    save_model(g_model)
+    #save_model(g_model)
