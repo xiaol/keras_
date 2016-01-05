@@ -42,7 +42,7 @@ def prepare_data():
         return unicode(open(input_data).read()).lower()  #to unicode with chinese character
     print('Fetching data...')
     result_list = conn['news_ver2']['googleNewsItem'].find({"isOnline": 1}).\
-        sort([("createTime", pymongo.DESCENDING)]).limit(200).batch_size(200)
+        sort([("createTime", pymongo.DESCENDING)]).limit(2).batch_size(200)
     text = ''
     for result in result_list:
         text += result['title']
@@ -57,7 +57,7 @@ def old_one():
     text = open(path).read().lower()
     return text
 
-text = prepare_data()
+text = prepare_data().encode('utf-8')
 print('corpus length:', len(text))
 chars = set(text)
 print('total chars:', len(chars))
