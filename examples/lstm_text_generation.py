@@ -25,7 +25,6 @@ import pymongo
 from pymongo.read_preferences import ReadPreference
 from keras.models import model_from_json
 # import redis
-# r = redis.Redis('121.40.34.56','6379',db=1)
 
 
 conn = pymongo.MongoReplicaSetClient("h44:27017, h213:27017, h241:27017", replicaSet="myset",
